@@ -34,6 +34,7 @@ describe('setup()', function() {
             const getObject = S3.prototype.getObject = sinon.stub();
             getObject.withArgs({Bucket: 'validBucket', Key: 'validKey'}).returns({
                 promise: () => { return {
+                  ContentType: "text/plain",
                   Body: Buffer.from('SampleImageContent\n')
                 }}
             })
@@ -45,7 +46,10 @@ describe('setup()', function() {
                 bucket: 'validBucket',
                 key: 'validKey',
                 edits: { grayscale: true },
-                originalImage: Buffer.from('SampleImageContent\n')
+                originalImage: {
+                  ContentType: "text/plain",
+                  Body: Buffer.from('SampleImageContent\n')
+                }
             }
             // Assert
             assert.deepEqual(imageRequest, expectedResult);
@@ -67,6 +71,7 @@ describe('setup()', function() {
             const getObject = S3.prototype.getObject = sinon.stub();
             getObject.withArgs({Bucket: 'allowedBucket001', Key: 'test-image-001.jpg'}).returns({
                 promise: () => { return {
+                  ContentType: "text/plain",
                   Body: Buffer.from('SampleImageContent\n')
                 }}
             })
@@ -78,7 +83,10 @@ describe('setup()', function() {
                 bucket: 'allowedBucket001',
                 key: 'test-image-001.jpg',
                 edits: { grayscale: true },
-                originalImage: Buffer.from('SampleImageContent\n')
+                originalImage: {
+                  ContentType: "text/plain",
+                  Body: Buffer.from('SampleImageContent\n')
+                }
             }
             // Assert
             assert.deepEqual(imageRequest, expectedResult);
@@ -116,7 +124,9 @@ describe('setup()', function() {
                     grayscale: true,
                     rotate: 90
                 },
-                originalImage: Buffer.from('SampleImageContent\n')
+                originalImage: {
+                  Body: Buffer.from('SampleImageContent\n')
+                }
             }
             // Assert
             assert.deepEqual(imageRequest, expectedResult);
@@ -169,7 +179,7 @@ describe('getOriginalImage()', function() {
             const imageRequest = new ImageRequest();
             const result = await imageRequest.getOriginalImage('validBucket', 'validKey');
             // Assert
-            assert.deepEqual(result, Buffer.from('SampleImageContent\n'));
+            assert.deepEqual(result.Body, Buffer.from('SampleImageContent\n'));
         });
     });
     describe('002/imageDoesNotExist', async function() {

@@ -46,7 +46,7 @@ class ImageRequest {
         const request = s3.getObject(imageLocation).promise();
         try {
             const originalImage = await request;
-            return Promise.resolve(originalImage.Body);
+            return Promise.resolve(originalImage);
         }
         catch(err) {
             return Promise.reject({
