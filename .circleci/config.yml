@@ -1,0 +1,177 @@
+version: 2.1
+
+setup: true
+
+parameters:
+  force:
+    type: boolean
+    default: false
+  scheduled:
+    type: boolean
+    default: false
+
+orbs:
+  continuation: circleci/continuation@1
+  aws-cli: circleci/aws-cli@5
+
+executors:
+  circleci-img:
+    docker:
+      - image: cimg/base:current
+
+commands:
+  aws-configure:
+    description: "AWS Configuration"
+    parameters:
+      profile_name:
+        type: string
+      role_arn:
+        type: string
+    steps:
+      - aws-cli/setup:
+          profile_name: "default"
+          role_arn: "${AWS_DEFAULT_OIDC_ROLE}"
+          region: "us-west-2"
+          role_session_name: "circle-tf-backend"
+          session_duration: "1800"
+      - aws-cli/setup:
+          profile_name: << parameters.profile_name >>
+          role_arn: << parameters.role_arn >>
+          region: "us-east-1"
+          role_session_name: "circle-tf-<< parameters.profile_name >>"
+          session_duration: "1800"
+
+  install-helper_scripts:
+    description: "Install Helper Scripts"
+    steps:
+      - run:
+          name: Helper Scripts Install
+          command: |
+            echo 'source /home/circleci/project/.circleci/libraries/kv-bash' >> ${BASH_ENV}
+            source ${BASH_ENV}
+
+  git-add-upstream_remote:
+    description: "Git add fork parent as ppstream remote"
+    steps:
+      - run:
+          name: Upstream Addition
+          command: |
+            echo "Adding Remote Upstream..."
+            git remote add upstream https://github.com/aws-solutions/dynamic-image-transformation-for-amazon-cloudfront.git
+            echo "Fetching Upstream"; git fetch upstream
+            echo "Fetching Origin";   git fetch origin
+
+  git-check_for_changes:
+    description: "Checking for changes from the fork parent"
+    steps:
+      - run:
+          name: Change Check
+          command: |
+            kvset CHANGED false
+
+            UPSTREAM_HASH=$(git rev-parse upstream/main)
+
+            # TextUS Changes are on top. All changes should be fixed up into or
+            # squashed into the top commit. Perhaps we could use more complex
+            # logic here, but for now we look for the previous commit.
+
+            FORKED_HASH=$(git rev-parse HEAD~1)
+
+            echo "Upstream hash: ${UPSTREAM_HASH}"
+            echo "Forked hash:   ${FORKED_HASH}"
+
+            [[ "${UPSTREAM_HASH}" == "${FORKED_HASH}" ]] || kvset CHANGED true
+
+            if eval "$(kvget CHANGED)"; then
+              echo "Upstream has changes - sync needed"
+            else
+              echo "Fork is up to date - no sync needed"
+            fi
+
+  git-sync:
+    description: "Sync fork with Parent"
+    steps:
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:4WNuUwlSOkIuz/FVqScVZv21Fi49FbhZp/r+Q8tQEm4"
+      - run:
+          name: Syncing
+          command: |
+            eval "$(kvget CHANGED)" || { echo "No Changes to Sync."; exit 0; }
+
+            git config --global user.email "ops+textus-ci@textus.com"
+            git config --global user.name  "textus-ci"
+
+            git rebase upstream/main
+            git push --force-with-lease
+
+  git-clone:
+    description: "Homebrew Circle Git Clone to bypass current SHA"
+    steps:
+      - run:
+          name: Checkout
+          command: |
+            mkdir -p ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            git clone --depth 1 $CIRCLE_REPOSITORY_URL .
+            git rev-parse HEAD
+
+  continuation-workflow_modify:
+    description: "Modify the Continuation Workflow based on if there were changes"
+    steps:
+      - run:
+          name: Modifying
+          command: |
+            << pipeline.parameters.force >> || $(kvget CHANGED) || sed -i '/- welcome/q' /home/circleci/project/.circleci/config.continue.yml
+
+  continuation-workflow_output:
+    description: "Modify the Continuation Workflow based on if there were changes"
+    steps:
+      - run:
+          name: Output
+          command: |
+            cat /home/circleci/project/.circleci/config.continue.yml
+
+jobs:
+  github-sync:
+    executor: circleci-img
+    resource_class: small
+    steps:
+      - checkout
+      - install-helper_scripts
+      - git-add-upstream_remote
+      - git-check_for_changes
+      - git-sync
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .kv-bash
+
+  generate-deploy-workflow:
+    executor: circleci-img
+    resource_class: small
+    steps:
+      - git-clone
+      - attach_workspace:
+          at: ~/
+      - install-helper_scripts
+      - continuation-workflow_modify
+      - continuation-workflow_output
+      - continuation/continue:
+          configuration_path: /home/circleci/project/.circleci/config.continue.yml
+
+workflows:
+  triggered-github_sync-ci_generation:
+    when:
+      or:
+        - << pipeline.parameters.force >>
+        - << pipeline.parameters.scheduled >>
+    jobs:
+      - github-sync:
+          filters:
+            branches:
+              only:
+                - master
+      - generate-deploy-workflow:
+          requires:
+            - github-sync
