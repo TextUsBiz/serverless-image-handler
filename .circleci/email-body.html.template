@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pipeline Approval Required</title>
+    <!--[if mso]>
+    <noscript>
+        <xml>
+            <o:OfficeDocumentSettings>
+                <o:PixelsPerInch>96</o:PixelsPerInch>
+            </o:OfficeDocumentSettings>
+        </xml>
+    </noscript>
+    <![endif]-->
+    <style>
+        /* Only essential styles that can't be inlined */
+        @media only screen and (max-width: 480px) {
+            .mobile-full-width { width: 100% !important; }
+            .mobile-padding { padding: 20px 15px !important; }
+            .mobile-stack { display: block !important; width: 100% !important; }
+        }
+    </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: Arial, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt;">
+        <tr>
+            <td style="padding: 20px 0;">
+                <!-- Main Container -->
+                <table class="mobile-full-width" role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" style="border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #343434; padding: 30px 20px; text-align: center;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: bold; font-family: Arial, sans-serif;">🔄 Pipeline Approval Required</h1>
+                        </td>
+                    </tr>
+
+                    <!-- Main Content -->
+                    <tr>
+                        <td class="mobile-padding" style="padding: 40px 30px;">
+                            <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
+
+                                <!-- Greeting -->
+                                <tr>
+                                    <td style="padding-bottom: 20px;">
+                                        <p style="margin: 0 0 15px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.4; color: #333333;">Hello,</p>
+                                        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.4; color: #333333;">A deployment pipeline is waiting for your approval to proceed to the next stage.</p>
+                                    </td>
+                                </tr>
+
+                                <!-- Project Information Box -->
+                                <tr>
+                                    <td style="padding: 20px 0;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse; background-color: #f8f9fa; border-left: 4px solid #007cbb;">
+                                            <tr>
+                                                <td style="padding: 20px;">
+                                                    <h3 style="margin: 0 0 10px 0; color: #343434; font-size: 18px; font-family: Arial, sans-serif; font-weight: bold;">${CIRCLE_PROJECT_REPONAME}</h3>
+                                                    <p style="margin: 5px 0; color: #666666; font-size: 14px; font-family: Arial, sans-serif;"><strong>Branch:</strong> ${CIRCLE_BRANCH}</p>
+                                                    <p style="margin: 5px 0; color: #666666; font-size: 14px; font-family: Arial, sans-serif;"><strong>Triggered by:</strong> ${CIRCLE_USERNAME}</p>
+                                                    <p style="margin: 5px 0; color: #666666; font-size: 14px; font-family: Arial, sans-serif;"><strong>Latest commit:</strong> ${LATEST_GIT_SHA}</p>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Approval Button -->
+                                <tr>
+                                    <td style="padding: 30px 0; text-align: center;">
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="border-collapse: collapse; margin: 0 auto;">
+                                            <tr>
+                                                <td style="border-radius: 5px; background-color: #28a745;">
+                                                    <a href="${PIPELINE_URL}" style="display: inline-block; padding: 15px 30px; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; border-radius: 5px;">Review &amp; Approve Pipeline</a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Pipeline Details -->
+                                <tr>
+                                    <td style="padding: 30px 0 0 0; border-top: 1px solid #e9ecef;">
+                                        <h4 style="margin: 0 0 15px 0; color: #343434; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold;">Pipeline Details</h4>
+
+                                        <!-- Detail Rows -->
+                                        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #f8f9fa;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
+                                                        <tr>
+                                                            <td width="30%" style="font-weight: bold; color: #666666; font-family: Arial, sans-serif; font-size: 14px; vertical-align: top;">Pipeline #:</td>
+                                                            <td width="70%" style="color: #343434; font-family: Arial, sans-serif; font-size: 14px;">${CIRCLE_PIPELINE_NUM}</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #f8f9fa;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
+                                                        <tr>
+                                                            <td width="30%" style="font-weight: bold; color: #666666; font-family: Arial, sans-serif; font-size: 14px; vertical-align: top;">Workflow:</td>
+                                                            <td width="70%" style="color: #343434; font-family: Arial, sans-serif; font-size: 14px;">${CIRCLE_WORKFLOW_ID}</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #f8f9fa;">
+                                                    <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="border-collapse: collapse;">
+                                                        <tr>
+                                                            <td width="30%" style="font-weight: bold; color: #666666; font-family: Arial, sans-serif; font-size: 14px; vertical-align: top;">Initiated:</td>
+                                                            <td width="70%" style="color: #343434; font-family: Arial, sans-serif; font-size: 14px;">${CREATED_AT}</td>
+                                                        </tr>
+                                                    </table>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+
+                                <!-- Next Steps -->
+                                <tr>
+                                    <td style="padding: 30px 0 0 0;">
+                                        <p style="margin: 0 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.4; color: #333333;">
+                                            <strong>What happens next?</strong><br>
+                                            Click the approval button above to review the pipeline details and approve or reject the deployment. 
+                                            The pipeline will remain paused until action is taken.
+                                        </p>
+
+                                        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.4; color: #666666;">
+                                            If you're unable to access the link, copy and paste this URL into your browser:<br>
+                                            <a href="${PIPELINE_URL}" style="color: #007cbb; text-decoration: underline; word-break: break-all;">${PIPELINE_URL}</a>
+                                        </p>
+                                    </td>
+                                </tr>
+
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
+                            <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 12px; color: #666666;">This email was automatically generated by CircleCI Pipeline Automation.</p>
+                            <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 12px; color: #666666;">If you have questions, please contact your DevOps team.</p>
+                            <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #666666;">Support: <a href="mailto:${SUPPORT_EMAIL}" style="color: #007cbb; text-decoration: underline;">${SUPPORT_EMAIL}</a></p>
+                        </td>
+                    </tr>
+
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
