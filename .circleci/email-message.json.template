@@ -1,0 +1,12 @@
+{
+  "Subject": {
+    "Data": "${EMAIL_SUBJECT}",
+    "Charset": "UTF-8"
+  },
+  "Body": {
+    "Html": {
+      "Data": "${EMAIL_HTML_BODY}",
+      "Charset": "UTF-8"
+    }
+  }
+}

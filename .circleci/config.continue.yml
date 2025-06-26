@@ -1,0 +1,210 @@
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@5
+
+executors:
+  circleci-node-img:
+    docker:
+      - image: cimg/node:lts
+  circleci-img:
+    docker:
+      - image: cimg/base:current
+
+commands:
+  aws-configure:
+    description: "AWS Configuration"
+    parameters:
+      profile_name:
+        type: string
+      role_arn:
+        type: string
+    steps:
+      - aws-cli/setup:
+          profile_name: "default"
+          role_arn: "${AWS_DEFAULT_OIDC_ROLE}"
+          region: "us-west-2"
+          role_session_name: "circle-tf-backend"
+          session_duration: "1800"
+      - aws-cli/setup:
+          profile_name: << parameters.profile_name >>
+          role_arn: << parameters.role_arn >>
+          region: "us-east-1"
+          role_session_name: "circle-tf-<< parameters.profile_name >>"
+          session_duration: "1800"
+
+  aws-dynamic_image_transformation_for_amazon_cloudfront-install:
+    description: "Clean install all Node resources"
+    steps:
+      - run:
+          name: Clean Install
+          command: |
+            cd source/constructs
+            npm run clean:install
+
+  aws-dynamic_image_transformation_for_amazon_cloudfront-bootstrap:
+    description: "Bootstrap the AWS Resources"
+    parameters:
+      profile_name:
+        type: string
+    steps:
+      - run:
+          name: Bootstrap
+          command: |
+            cd source/constructs
+            overrideWarningsEnabled=false npx cdk bootstrap --profile << parameters.profile_name >>
+
+  aws-dynamic_image_transformation_for_amazon_cloudfront-deploy:
+    description: "Deploy the AWS Dynamic Image Transformation for Amazon Cloudfront"
+    parameters:
+      profile_name:
+        type: string
+    steps:
+      - run:
+          name: Deploy Cloudformation Stack
+          environment:
+              ENVIRONMENT: << parameters.profile_name >>
+          command: |
+            cd source/constructs
+
+            LOG_RETENTION=30
+            CORS_ORIGINS='*'
+            SOURCE_BUCKET=tesseract.${ENVIRONMENT:0:4}.conversation-attachment
+
+            if [[ ${ENVIRONMENT} == "production" ]]; then
+              LOG_RETENTION=365
+              CORS_ORIGINS="$( echo ${PRODUCTION_CORS_ORIGINS} | jq -r 'join(",")' )"
+            fi
+
+            overrideWarningsEnabled=false npx cdk deploy \
+              --parameters DeployDemoUIParameter=No      \
+              --parameters LogRetentionPeriodParameter=${LOG_RETENTION} \
+              --parameters CloudFrontPriceClassParameter=PriceClass_100 \
+              --parameters AutoWebPParameter=Yes    \
+              --parameters CorsEnabledParameter=Yes \
+              --parameters CorsOriginParameter="${CORS_ORIGINS}"   \
+              --parameters SourceBucketsParameter=${SOURCE_BUCKET} \
+              --profile ${ENVIRONMENT}
+
+  aws-ses-email:
+    description: "Email DevOps for approval"
+    steps:
+      - run:
+          name: Email
+          command: |
+            export PIPELINE_URL="https://app.circleci.com/pipelines/github/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}/${CIRCLE_PIPELINE_NUM}"
+            export CREATED_AT=$(date '+%B %d, %Y at %I:%M %p %Z')
+            export SUPPORT_EMAIL="devops@textus.com"
+            export EMAIL_SUBJECT="CircleCI Pipeline Request for Approval"
+            export EMAIL_HTML_BODY=$(cat /home/circleci/project/.circleci/email.html.template | envsubst | sed 's/"/\\"/g')
+
+            aws ses send-email \
+              --source      "devops@textus.com" \
+              --destination "ToAddresses=devops+circleci@textus.com" \
+              --message     "$(cat /home/circleci/project/.circleci/email-message.json.template | envsubst)"
+
+jobs:
+  welcome:
+    executor: circleci-img
+    resource_class: small
+    steps:
+      - run:
+          name: Welcome
+          command: |
+            cat \<<'WELCOME'
+              __          __  _                            _______
+              \ \        / / | |                          |__   __|  _
+               \ \  /\  / /__| | ___ ___  _ __ ___   ___     | | ___(_)
+                \ \/  \/ / _ \ |/ __/ _ \| '_ ` _ \ / _ \    | |/ _ \
+                 \  /\  /  __/ | (_| (_) | | | | | |  __/    | | (_) |
+                __\/_ \/ \___|_|\___\___/|_| |_| |_|\___|    |_|\___(_)                             _    _                 _ _              _____ _____
+               / ____|                        | |               |_   _|                            | |  | |               | | |            / ____|_   _|
+              | (___   ___ _ ____   _____ _ __| | ___  ___ ___    | |  _ __ ___   __ _  __ _  ___  | |__| | __ _ _ __   __| | | ___ _ __  | |      | |
+               \___ \ / _ \ '__\ \ / / _ \ '__| |/ _ \/ __/ __|   | | | '_ ` _ \ / _` |/ _` |/ _ \ |  __  |/ _` | '_ \ / _` | |/ _ \ '__| | |      | |
+               ____) |  __/ |   \ V /  __/ |  | |  __/\__ \__ \  _| |_| | | | | | (_| | (_| |  __/ | |  | | (_| | | | | (_| | |  __/ |    | |____ _| |_
+              |_____/ \___|_|    \_/ \___|_|  |_|\___||___/___/ |_____|_| |_| |_|\__,_|\__, |\___| |_|  |_|\__,_|_| |_|\__,_|_|\___|_|     \_____|_____|
+                                                                                        __/ |
+                                                                                       |___/
+            WELCOME
+
+  install:
+    executor: circleci-node-img
+    steps:
+      - checkout
+      - aws-dynamic_image_transformation_for_amazon_cloudfront-install
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+
+  deploy:
+    executor: circleci-node-img
+    parameters:
+      profile_name:
+        type: string
+      role_arn:
+        type: string
+    steps:
+      - attach_workspace:
+          at: .
+      - aws-configure:
+          profile_name: << parameters.profile_name >>
+          role_arn:     << parameters.role_arn >>
+      - aws-dynamic_image_transformation_for_amazon_cloudfront-bootstrap:
+          profile_name: << parameters.profile_name >>
+      - aws-dynamic_image_transformation_for_amazon_cloudfront-deploy:
+          profile_name: << parameters.profile_name >>
+
+  email-approval_request:
+    executor: circleci-img
+    resource_class: small
+    parameters:
+      profile_name:
+        type: string
+      role_arn:
+        type: string
+    steps:
+      - attach_workspace:
+          at: .
+      - aws-configure:
+          profile_name: << parameters.profile_name >>
+          role_arn:     << parameters.role_arn >>
+      - aws-ses-email
+
+workflows:
+  deploy-serverless_image_handler:
+    jobs:
+      - welcome
+      - install
+      - deploy:
+          name: "development_deploy"
+          profile_name: "development"
+          role_arn: "${AWS_DEVE_ROLE_ARN}"
+      - deploy:
+          name: "integration_deploy"
+          profile_name: "integration"
+          role_arn: "${AWS_INTE_ROLE_ARN}"
+          requires:
+            - development_deploy
+      - deploy:
+          name: "staging_deploy"
+          profile_name: "staging"
+          role_arn: "${AWS_STAG_ROLE_ARN}"
+          requires:
+            - integration_deploy
+      - email-approval_request:
+          profile_name: "development"
+          role_arn: "${AWS_DEVE_ROLE_ARN}"
+          requires:
+            - staging_deploy
+      - hold:
+          name: approve-production-deploy
+          type: approval
+          requires:
+            - staging_deploy
+      - deploy:
+          name: "production_deploy"
+          profile_name: "production"
+          role_arn: "${AWS_PROD_ROLE_ARN}"
+          requires:
+            - approve-production-deploy

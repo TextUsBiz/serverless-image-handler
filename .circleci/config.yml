@@ -1,0 +1,148 @@
+version: 2.1
+
+setup: true
+
+parameters:
+  force:
+    type: boolean
+    default: false
+
+orbs:
+  continuation: circleci/continuation@1
+  aws-cli: circleci/aws-cli@5
+
+executors:
+  circleci-img:
+    docker:
+      - image: cimg/base:current
+
+commands:
+  aws-configure:
+    description: "AWS Configuration"
+    parameters:
+      profile_name:
+        type: string
+      role_arn:
+        type: string
+    steps:
+      - aws-cli/setup:
+          profile_name: "default"
+          role_arn: "${AWS_DEFAULT_OIDC_ROLE}"
+          region: "us-west-2"
+          role_session_name: "circle-tf-backend"
+          session_duration: "1800"
+      - aws-cli/setup:
+          profile_name: << parameters.profile_name >>
+          role_arn: << parameters.role_arn >>
+          region: "us-east-1"
+          role_session_name: "circle-tf-<< parameters.profile_name >>"
+          session_duration: "1800"
+
+  install-helper_scripts:
+    description: "Install Helper Scripts"
+    steps:
+      - run:
+          name: Helper Scripts Install
+          command: |
+            echo 'source /home/circleci/project/.circleci/libraries/kv-bash' >> ${BASH_ENV}
+            source ${BASH_ENV}
+
+  git-add-upstream_remote:
+    description: "Git add fork parent as ppstream remote"
+    steps:
+      - run:
+          name: Upstream Addition
+          command: |
+            echo "Adding Remote Upstream..."
+            git remote add upstream https://github.com/aws-solutions/dynamic-image-transformation-for-amazon-cloudfront.git
+            echo "Fetching Upstream"; git fetch upstream
+            echo "Fetching Origin";   git fetch origin
+
+  git-check_for_changes:
+    description: "Checking for changes from the fork parent"
+    steps:
+      - run:
+          name: Change Check
+          command: |
+            UPSTREAM_HASH=$(git rev-parse upstream/main)
+            CURRENT_HASH=$(git rev-parse HEAD)
+
+            echo "Upstream hash: ${UPSTREAM_HASH}"
+            echo "Current hash:  ${CURRENT_HASH}"
+
+            kvset CHANGED [[ "${UPSTREAM_HASH}" != "${CURRENT_HASH}" ]]
+
+            if $(kvget CHANGED); then
+              echo "Upstream has changes - sync needed"
+            else
+              echo "Fork is up to date - no sync needed"
+            fi
+
+  git-sync:
+    description: "Sync fork with Parent"
+    steps:
+      - run:
+          name: Syncing
+          command: |
+            $(kvget CHANGED) || { echo "No Changes to Sync."; exit 0; }
+            git checkout main
+            git rebase upstream/main
+            git push --force-with-lease origin main
+
+  continuation-workflow_modify:
+    description: "Modify the Continuation Workflow based on if there were changes"
+    steps:
+      - run:
+          name: Modifying
+          command: |
+            << pipeline.parameters.force >> || $(kvget CHANGED) || sed -i '/- welcome/q' /home/circleci/project/.circleci/config.continue.yml
+
+  continuation-workflow_output:
+    description: "Modify the Continuation Workflow based on if there were changes"
+    steps:
+      - run:
+          name: Output
+          command: |
+            cat /home/circleci/project/.circleci/config.continue.yml
+
+jobs:
+  github-sync:
+    executor: circleci-img
+    resource_class: small
+    steps:
+      - checkout
+      - install-helper_scripts
+      - git-add-upstream_remote
+      - git-check_for_changes
+      - git-sync
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - .kv-bash
+
+  generate-deploy-workflow:
+    executor: circleci-img
+    resource_class: small
+    steps:
+      - checkout
+      - attach_workspace:
+          at: ~/
+      - install-helper_scripts
+      - continuation-workflow_modify
+      - continuation-workflow_output
+      - continuation/continue:
+          configuration_path: /home/circleci/project/.circleci/config.continue.yml
+
+workflows:
+  scheduled-sync-ci_generation:
+    triggers:
+      - schedule:
+          # Run every 6 months on the 1st at 2 AM UTC
+          cron: "0 2 1 1,7 *"
+          filters:
+            branches:
+              only:
+                - main
+    jobs:
+      - github-sync
+      - generate-deploy-workflow
