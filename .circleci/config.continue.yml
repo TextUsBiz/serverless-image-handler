@@ -84,7 +84,25 @@ commands:
               CORS_ORIGINS="${PRODUCTION_CORS_ORIGINS}"
             fi
 
+            # -c productionImageUri: we deploy only v7-Stack (the Lambda path), but CDK
+            # synthesizes every stack in the app -- including v8-Stack (the ECS path),
+            # whose ContainerConstruct does `isLocalBuild = !productionImageUri` and so
+            # runs `docker build` during synth. This executor has no Docker daemon, so
+            # the deploy fails while publishing assets.
+            #
+            # Supplying any non-empty value makes v8-Stack treat the image as external
+            # and skip the build. The value is never used: we do not deploy v8-Stack.
+            #
+            # Upstream workaround recommended by the maintainer in
+            # aws-solutions/dynamic-image-transformation-for-amazon-cloudfront#634
+            # (our issue, still open -- they intend to restructure how the two
+            # deployment paths coexist). Remove this once that lands.
+            #
+            # Kept here rather than in source/constructs/cdk.json, which the maintainer
+            # also offered: cdk.json is upstream-managed and would conflict on every
+            # rebase, whereas .circleci/ is ours alone.
             overrideWarningsEnabled=false npx cdk deploy v7-Stack \
+              -c productionImageUri="placeholder:latest" \
               --parameters DeployDemoUIParameter=No      \
               --parameters LogRetentionPeriodParameter=${LOG_RETENTION} \
               --parameters CloudFrontPriceClassParameter=PriceClass_100 \
