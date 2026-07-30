@@ -95,6 +95,82 @@ commands:
               --profile ${ENVIRONMENT} \
               --require-approval never
 
+  aws-dynamic_image_transformation_for_amazon_cloudfront-publish_host:
+    description: "Publish the deployed CloudFront host for the Tesseract app"
+    #
+    # The app builds resized-image URLs against this distribution, so it needs the
+    # hostname. Published here, by the pipeline that creates the stack, rather than read
+    # by the object-storage runbook: that runbook only re-applies when its own *.tf files
+    # change, so a replaced distribution would leave a dead host published indefinitely.
+    #
+    parameters:
+      profile_name:
+        type: string
+    steps:
+      - run:
+          name: Verify Stack Outputs
+          environment:
+            ENVIRONMENT: << parameters.profile_name >>
+            # Must match whatever `cdk deploy` above produced. The CDK app declares the
+            # construct id as v7-Stack while the long-standing deployed stack is named
+            # ServerlessImageHandlerStack; until that is reconciled, this is the one line
+            # to change.
+            STACK_NAME: v7-Stack
+          command: |
+            SOURCE_BUCKET=tesseract.${ENVIRONMENT:0:4}.conversation-attachment
+
+            stack_output () {
+              aws cloudformation describe-stacks \
+                --stack-name "${STACK_NAME}" \
+                --query "Stacks[0].Outputs[?OutputKey=='${1}'].OutputValue" \
+                --output text --profile "${ENVIRONMENT}"
+            }
+
+            ENDPOINT=$(stack_output ApiEndpoint)
+            BUCKETS=$(stack_output SourceBuckets)
+
+            if [[ -z "${ENDPOINT}" || "${ENDPOINT}" == "None" ]]; then
+              printf 'Stack %s exposed no ApiEndpoint output.\n' "${STACK_NAME}"
+              exit 1
+            fi
+
+            # The handler validates requested buckets against its own SourceBuckets and
+            # rejects anything else, so a mismatch 403s every resized image: avatars,
+            # account logos, saved-reply thumbnails, webhook and push images.
+            if [[ ",${BUCKETS}," != *",${SOURCE_BUCKET},"* ]]; then
+              printf 'Stack SourceBuckets=%s does not include %s.\n' "${BUCKETS}" "${SOURCE_BUCKET}"
+              exit 1
+            fi
+
+            # Bare host, no scheme, to match the object-store config convention so the app
+            # never strips or adds one. printf rather than echo: echo would append a
+            # newline into the stored value.
+            printf '%s' "${ENDPOINT#https://}" > /tmp/image_handler_host
+
+            printf 'Verified %s against %s\n' "${ENDPOINT}" "${SOURCE_BUCKET}"
+
+      - run:
+          name: Publish Host to Secrets Manager
+          environment:
+            ENVIRONMENT: << parameters.profile_name >>
+            HOST_SECRET_ID: tesseract/image_handler/host
+          command: |
+            if aws secretsmanager describe-secret --secret-id "${HOST_SECRET_ID}" \
+                 --profile "${ENVIRONMENT}" >/dev/null 2>&1; then
+              aws secretsmanager put-secret-value \
+                --secret-id "${HOST_SECRET_ID}" \
+                --secret-string "file:///tmp/image_handler_host" \
+                --profile "${ENVIRONMENT}" >/dev/null
+              printf 'Updated %s = %s\n' "${HOST_SECRET_ID}" "$(cat /tmp/image_handler_host)"
+            else
+              aws secretsmanager create-secret \
+                --name "${HOST_SECRET_ID}" \
+                --secret-string "file:///tmp/image_handler_host" \
+                --description "Dynamic Image Transformation CloudFront host, bare (no scheme). Published by this pipeline on every deploy." \
+                --profile "${ENVIRONMENT}" >/dev/null
+              printf 'Created %s = %s\n' "${HOST_SECRET_ID}" "$(cat /tmp/image_handler_host)"
+            fi
+
   aws-ses-email:
     description: "Email DevOps for approval"
     steps:
@@ -187,6 +263,8 @@ jobs:
       - aws-dynamic_image_transformation_for_amazon_cloudfront-bootstrap:
           profile_name: << parameters.profile_name >>
       - aws-dynamic_image_transformation_for_amazon_cloudfront-deploy:
+          profile_name: << parameters.profile_name >>
+      - aws-dynamic_image_transformation_for_amazon_cloudfront-publish_host:
           profile_name: << parameters.profile_name >>
 
   email-approval_request:
