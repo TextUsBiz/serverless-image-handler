@@ -84,7 +84,7 @@ commands:
               CORS_ORIGINS="${PRODUCTION_CORS_ORIGINS}"
             fi
 
-            # -c productionImageUri: we deploy only v7-Stack (the Lambda path), but CDK
+            # -c productionImageUri: we deploy only the Lambda path, but CDK
             # synthesizes every stack in the app -- including v8-Stack (the ECS path),
             # whose ContainerConstruct does `isLocalBuild = !productionImageUri` and so
             # runs `docker build` during synth. This executor has no Docker daemon, so
@@ -101,7 +101,7 @@ commands:
             # Kept here rather than in source/constructs/cdk.json, which the maintainer
             # also offered: cdk.json is upstream-managed and would conflict on every
             # rebase, whereas .circleci/ is ours alone.
-            overrideWarningsEnabled=false npx cdk deploy v7-Stack \
+            overrideWarningsEnabled=false npx cdk deploy ServerlessImageHandlerStack \
               -c productionImageUri="placeholder:latest" \
               --parameters DeployDemoUIParameter=No      \
               --parameters LogRetentionPeriodParameter=${LOG_RETENTION} \
@@ -129,11 +129,9 @@ commands:
           name: Verify Stack Outputs
           environment:
             ENVIRONMENT: << parameters.profile_name >>
-            # Must match whatever `cdk deploy` above produced. The CDK app declares the
-            # construct id as v7-Stack while the long-standing deployed stack is named
-            # ServerlessImageHandlerStack; until that is reconciled, this is the one line
-            # to change.
-            STACK_NAME: v7-Stack
+            # Must match whatever `cdk deploy` above produced, i.e. the construct id set
+            # in source/constructs/bin/constructs.ts.
+            STACK_NAME: ServerlessImageHandlerStack
           command: |
             SOURCE_BUCKET=tesseract.${ENVIRONMENT:0:4}.conversation-attachment
 

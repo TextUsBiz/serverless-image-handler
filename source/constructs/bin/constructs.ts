@@ -32,7 +32,12 @@ const solutionName = SOLUTION_NAME ?? app.node.tryGetContext("solutionName");
 const solutionId = SOLUTION_ID ?? app.node.tryGetContext("solutionId");
 const description = `(${solutionId}) - ${solutionDisplayName}. Version ${solutionVersion}`;
 
-new ServerlessImageHandlerStack(app, "v7-Stack", {
+// TextUS: construct id, and therefore the CloudFormation stack name, deliberately
+// differs from upstream's "v7-Stack". Our stacks predate that rename, so deploying as
+// v7-Stack would create a parallel stack instead of updating ours. Keeping the old id
+// also keeps the logical IDs that embed it, so the update is in place rather than a
+// delete/create. Re-check on every upstream rebase.
+new ServerlessImageHandlerStack(app, "ServerlessImageHandlerStack", {
   synthesizer,
   description,
   solutionId,
